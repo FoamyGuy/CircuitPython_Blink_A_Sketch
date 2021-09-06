@@ -22,7 +22,7 @@ STATE_MENU = 1
 
 CUR_STATE = STATE_DRAWING
 
-MENU_PRESS_THRESHOLD = 1
+MENU_PRESS_THRESHOLD = 0.65
 MENU_ITEMS = (
     "Pen Size",
     "Step Size",
@@ -201,6 +201,7 @@ while True:
             button_right_left_held = False
             print("Button right/left released")
             if CUR_STATE == STATE_DRAWING:
+                print("pendown toggle")
                 if not turtle.isdown():
                     turtle.pendown()
                 else:
