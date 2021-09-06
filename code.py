@@ -88,6 +88,7 @@ menu_group.append(menu_list)
 MENU_SELECTED_INDEX = 0
 
 turtle = turtle(board.DISPLAY)
+turtle.pensize(PEN_SIZE)
 turtle.pendown()
 
 seesaw_up_down = seesaw.Seesaw(board.I2C(), addr=0x37)
@@ -134,6 +135,10 @@ def show_menu_selection(selected_index):
                 menu_detail.text = "Current\n{}".format(PEN_SIZE)
             if _item == "Step Size":
                 menu_detail.text = "Current\n{}".format(STEP_SIZE)
+            if _item == "Exit Menu":
+                menu_detail.text = "Press knob\nto exit"
+            if _item == "Clear":
+                menu_detail.text = "Press knob\nto clear\ndrawing"
 
 
 while True:
@@ -195,10 +200,11 @@ while True:
         if button_right_left.value and button_right_left_held:
             button_right_left_held = False
             print("Button right/left released")
-            if not turtle.isdown():
-                turtle.pendown()
-            else:
-                turtle.penup()
+            if CUR_STATE == STATE_DRAWING:
+                if not turtle.isdown():
+                    turtle.pendown()
+                else:
+                    turtle.penup()
 
         if button_right_left_held:
             if time.monotonic() - button_right_left_press_time > MENU_PRESS_THRESHOLD:
@@ -216,9 +222,17 @@ while True:
             if position_up_down > last_position_up_down:
                 if MENU_SELECTED_INDEX == MENU_ITEMS.index("Step Size"):
                     STEP_SIZE += 1
+                if MENU_SELECTED_INDEX == MENU_ITEMS.index("Pen Size"):
+                    PEN_SIZE += 1
             else:  # position went down
                 if MENU_SELECTED_INDEX == MENU_ITEMS.index("Step Size"):
                     STEP_SIZE -= 1
+                    if STEP_SIZE < 1:
+                        STEP_SIZE = 1
+                if MENU_SELECTED_INDEX == MENU_ITEMS.index("Pen Size"):
+                    PEN_SIZE -= 1
+                    if PEN_SIZE < 1:
+                        PEN_SIZE = 1
 
             show_menu_selection(MENU_SELECTED_INDEX)
 
@@ -245,9 +259,20 @@ while True:
             print("ignore: {}".format(button_right_left_ignore_release))
             button_right_left_held = False
             if not button_right_left_ignore_release:
-                pass
+                if MENU_SELECTED_INDEX == MENU_ITEMS.index("Exit Menu"):
+                    print("back to drawing")
+                    CUR_STATE = STATE_DRAWING
+                    turtle.pensize(PEN_SIZE)
+                    board.DISPLAY.show(turtle._splash)
+
+                elif MENU_SELECTED_INDEX == MENU_ITEMS.index("Clear"):
+                    menu_detail.text = "Clearing\ndrawing..."
+                    turtle.reset()
+                    menu_detail.text = "Cleared\ndrawing"
             else:
                 button_right_left_ignore_release = False
+
+
 
         if not button_up_down.value and not button_up_down_held:
             button_up_down_held = True
@@ -259,16 +284,14 @@ while True:
             if MENU_SELECTED_INDEX == MENU_ITEMS.index("Exit Menu"):
                 print("back to drawing")
                 CUR_STATE = STATE_DRAWING
+                turtle.pensize(PEN_SIZE)
                 board.DISPLAY.show(turtle._splash)
             if MENU_SELECTED_INDEX == MENU_ITEMS.index("Step Size"):
                 pass
-
-        """
-        STEP_SIZE += 1
-        if STEP_SIZE >= 4:
-            STEP_SIZE = 1
-        print("new stepsize: {}".format(STEP_SIZE))
-        """
+            elif MENU_SELECTED_INDEX == MENU_ITEMS.index("Clear"):
+                menu_detail.text = "Clearing\ndrawing..."
+                turtle.reset()
+                menu_detail.text = "Cleared\ndrawing"
 
     # update the last position variables
     last_position_right_left = position_right_left
