@@ -1,6 +1,9 @@
+import math
+
 import board
 import terminalio
 import time
+import adafruit_mpu6050
 from adafruit_display_text import label
 from adafruit_displayio_layout.layouts.grid_layout import GridLayout
 from adafruit_seesaw import seesaw, rotaryio, digitalio
@@ -21,6 +24,8 @@ STATE_DRAWING = 0
 STATE_MENU = 1
 
 CUR_STATE = STATE_DRAWING
+
+pen_down = True
 
 MENU_PRESS_THRESHOLD = 0.65
 MENU_ITEMS = (
@@ -49,6 +54,8 @@ colors = (
 )
 
 cur_pen_color_index = 0
+
+mpu = adafruit_mpu6050.MPU6050(board.I2C())
 
 menu_group = displayio.Group()
 
@@ -119,6 +126,7 @@ last_position_right_left = encoder_right_left.position
 button_right_left_press_time = 0
 button_right_left_ignore_release = False
 
+exit_menu_after_clear = False
 
 def show_menu_selection(selected_index):
     for _index, _item in enumerate(MENU_ITEMS):
@@ -140,6 +148,15 @@ def show_menu_selection(selected_index):
             if _item == "Clear":
                 menu_detail.text = "Press knob\nto clear\ndrawing"
 
+def goto_drawing_mode():
+    global CUR_STATE
+    print("back to drawing")
+    CUR_STATE = STATE_DRAWING
+    turtle.pensize(PEN_SIZE)
+    board.DISPLAY.show(turtle._splash)
+    if pen_down:
+        turtle.pendown()
+
 
 while True:
     #  read the encoder values
@@ -149,20 +166,34 @@ while True:
 
     if CUR_STATE == STATE_DRAWING:
 
+        if math.fabs(mpu.acceleration[1]) > 14:
+            exit_menu_after_clear = True
+            MENU_SELECTED_INDEX = MENU_ITEMS.index("Clear")
+            CUR_STATE = STATE_MENU
+            show_menu_selection(MENU_SELECTED_INDEX)
+            board.DISPLAY.show(menu_group)
+
         # if up/down encoder value changed
         if position_up_down != last_position_up_down:
             # if it went up
             if position_up_down > last_position_up_down:
                 # point the turtle north
                 turtle.setheading(NORTH)
-                # move the turtle 1 unit
-                turtle.forward(STEP_SIZE)
+
+                if turtle.position()[1] + STEP_SIZE <= board.DISPLAY.height//2:
+                    # move the turtle 1 unit
+                    turtle.forward(STEP_SIZE)
+                print(turtle.position())
 
             else:  # position went down
                 # point the turtle south
                 turtle.setheading(SOUTH)
-                # move the turtle 1 unit
-                turtle.forward(STEP_SIZE)
+
+                if turtle.position()[1] - STEP_SIZE >= -board.DISPLAY.height//2:
+                    # move the turtle 1 unit
+                    turtle.forward(STEP_SIZE)
+                print(turtle.position())
+
 
         # if right/left encoder value changed
         if position_right_left != last_position_right_left:
@@ -170,14 +201,18 @@ while True:
             if position_right_left > last_position_right_left:
                 # point the turtle east
                 turtle.setheading(EAST)
-                # move the turtle 1 unit
-                turtle.forward(STEP_SIZE)
+
+                if turtle.position()[0] + STEP_SIZE <= board.DISPLAY.width // 2:
+                    # move the turtle 1 unit
+                    turtle.forward(STEP_SIZE)
 
             else:  # position went down
                 # point the turtle west
                 turtle.setheading(WEST)
-                # move the turtle 1 unit
-                turtle.forward(STEP_SIZE)
+
+                if turtle.position()[0] - STEP_SIZE >= -board.DISPLAY.width // 2:
+                    # move the turtle 1 unit
+                    turtle.forward(STEP_SIZE)
 
         if not button_up_down.value and not button_up_down_held:
             button_up_down_held = True
@@ -203,9 +238,12 @@ while True:
             if CUR_STATE == STATE_DRAWING:
                 print("pendown toggle")
                 if not turtle.isdown():
+                    pen_down = True
                     turtle.pendown()
                 else:
+                    pen_down = False
                     turtle.penup()
+
 
         if button_right_left_held:
             if time.monotonic() - button_right_left_press_time > MENU_PRESS_THRESHOLD:
@@ -261,15 +299,15 @@ while True:
             button_right_left_held = False
             if not button_right_left_ignore_release:
                 if MENU_SELECTED_INDEX == MENU_ITEMS.index("Exit Menu"):
-                    print("back to drawing")
-                    CUR_STATE = STATE_DRAWING
-                    turtle.pensize(PEN_SIZE)
-                    board.DISPLAY.show(turtle._splash)
+                    goto_drawing_mode()
 
                 elif MENU_SELECTED_INDEX == MENU_ITEMS.index("Clear"):
                     menu_detail.text = "Clearing\ndrawing..."
                     turtle.reset()
                     menu_detail.text = "Cleared\ndrawing"
+                    if exit_menu_after_clear:
+                        exit_menu_after_clear = False
+                        goto_drawing_mode()
             else:
                 button_right_left_ignore_release = False
 
@@ -283,16 +321,16 @@ while True:
             button_up_down_held = False
             print("Button up/down released")
             if MENU_SELECTED_INDEX == MENU_ITEMS.index("Exit Menu"):
-                print("back to drawing")
-                CUR_STATE = STATE_DRAWING
-                turtle.pensize(PEN_SIZE)
-                board.DISPLAY.show(turtle._splash)
+                goto_drawing_mode()
             if MENU_SELECTED_INDEX == MENU_ITEMS.index("Step Size"):
                 pass
             elif MENU_SELECTED_INDEX == MENU_ITEMS.index("Clear"):
                 menu_detail.text = "Clearing\ndrawing..."
                 turtle.reset()
                 menu_detail.text = "Cleared\ndrawing"
+                if exit_menu_after_clear:
+                    exit_menu_after_clear = False
+                    goto_drawing_mode()
 
     # update the last position variables
     last_position_right_left = position_right_left
